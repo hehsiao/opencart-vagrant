@@ -1,5 +1,7 @@
-joshuaestes/opencart-vagrant
+hehsiao/opencart-vagrant
 ============================
+
+OpenCart is updated to 2.0.1.1
 
 This repository allows you to setup an OpenCart install using
 vagrant for development and testing.
