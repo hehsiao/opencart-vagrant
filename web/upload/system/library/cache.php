@@ -1,51 +1,26 @@
 <?php
 class Cache {
-	private $expire = 3600;
+	private $cache;
+
+	public function __construct($driver, $expire = 3600) {
+		$class = 'Cache\\' . $driver;
+
+		if (class_exists($class)) {
+			$this->cache = new $class($expire);
+		} else {
+			exit('Error: Could not load cache driver ' . $driver . ' cache!');
+		}
+	}
 
 	public function get($key) {
-		$files = glob(DIR_CACHE . 'cache.' . preg_replace('/[^A-Z0-9\._-]/i', '', $key) . '.*');
-
-		if ($files) {
-			$cache = file_get_contents($files[0]);
-
-			$data = unserialize($cache);
-
-			foreach ($files as $file) {
-				$time = substr(strrchr($file, '.'), 1);
-
-				if ($time < time()) {
-					if (file_exists($file)) {
-						unlink($file);
-					}
-				}
-			}
-
-			return $data;
-		}
+		return $this->cache->get($key);
 	}
 
 	public function set($key, $value) {
-		$this->delete($key);
-
-		$file = DIR_CACHE . 'cache.' . preg_replace('/[^A-Z0-9\._-]/i', '', $key) . '.' . (time() + $this->expire);
-
-		$handle = fopen($file, 'w');
-
-		fwrite($handle, serialize($value));
-
-		fclose($handle);
+		return $this->cache->set($key, $value);
 	}
 
 	public function delete($key) {
-		$files = glob(DIR_CACHE . 'cache.' . preg_replace('/[^A-Z0-9\._-]/i', '', $key) . '.*');
-
-		if ($files) {
-			foreach ($files as $file) {
-				if (file_exists($file)) {
-					unlink($file);
-				}
-			}
-		}
+		return $this->cache->delete($key);
 	}
 }
-?>

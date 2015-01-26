@@ -2,132 +2,151 @@
 class ControllerPaymentAmazonCheckout extends Controller {
 	public function address() {
 		if ($this->config->get('amazon_checkout_mode') == 'sandbox') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/sandbox/PaymentWidgets.js';
+			}
 		} elseif ($this->config->get('amazon_checkout_mode') == 'live') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/PaymentWidgets.js';
+			}
 		}
 
 		$this->document->addScript($amazon_payment_js);
 
 		// CBA supports up to 50 distinct products
 		if (count($this->cart->getProducts()) > 50) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
 		// CBA does not allow to process orders with a total of 0.00
 		if (count($this->cart->getTotal()) == 0) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
 		$this->load->model('account/address');
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('payment/amazon_checkout');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
 		if (isset($this->request->get['contract_id'])) {
 			$this->session->data['cba']['contract_id'] = $this->request->get['contract_id'];
 		} elseif (!isset($this->session->data['cba']['contract_id']) || empty($this->session->data['cba']['contract_id'])) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
-		$this->data['heading_title'] = $this->language->get('heading_title');
-		$this->data['heading_address'] = $this->language->get('heading_address');
-		$this->data['text_back'] = $this->language->get('text_back');
-		$this->data['text_cart'] = $this->language->get('text_cart');
-		$this->data['text_continue'] = $this->language->get('text_continue');
-		$this->data['error_shipping'] = $this->language->get('error_shipping');
-		$this->data['error_shipping_address'] = $this->language->get('error_shipping_address');
-		$this->data['error_shipping_methods'] = $this->language->get('error_shipping_methods');
-		$this->data['error_no_shipping_methods'] = $this->language->get('error_no_shipping_methods');
+		$data['heading_title'] = $this->language->get('heading_title');
+		$data['heading_address'] = $this->language->get('heading_address');
+		$data['text_back'] = $this->language->get('text_back');
+		$data['text_cart'] = $this->language->get('text_cart');
+		$data['text_continue'] = $this->language->get('text_continue');
+		$data['error_shipping'] = $this->language->get('error_shipping');
+		$data['error_shipping_address'] = $this->language->get('error_shipping_address');
+		$data['error_shipping_methods'] = $this->language->get('error_shipping_methods');
+		$data['error_no_shipping_methods'] = $this->language->get('error_no_shipping_methods');
 
-		$this->data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
-		$this->data['amazon_payment'] = $this->url->link('payment/amazon_checkout/payment', '', 'SSL');
-		$this->data['shipping_quotes'] = $this->url->link('payment/amazon_checkout/shipping_quotes', '', 'SSL');
-		$this->data['payment_method'] = $this->url->link('payment/amazon_checkout/payment_method', '', 'SSL');
+		$data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
+		$data['amazon_payment'] = $this->url->link('payment/amazon_checkout/payment', '', 'SSL');
+		$data['shipping_quotes'] = $this->url->link('payment/amazon_checkout/shippingquotes', '', 'SSL');
+		$data['payment_method'] = $this->url->link('payment/amazon_checkout/paymentmethod', '', 'SSL');
+
+		$data['cart'] = $this->url->link('checkout/cart');
+		$data['text_cart'] = $this->language->get('text_cart');
+
+		$data['column_left'] = $this->load->controller('common/column_left');
+		$data['column_right'] = $this->load->controller('common/column_right');
+		$data['content_top'] = $this->load->controller('common/content_top');
+		$data['content_bottom'] = $this->load->controller('common/content_bottom');
+		$data['footer'] = $this->load->controller('common/footer');
+		$data['header'] = $this->load->controller('common/header');
 
 		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_address.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/payment/amazon_checkout_address.tpl';
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/payment/amazon_checkout_address.tpl', $data));
 		} else {
-			$this->template = 'default/template/payment/amazon_checkout_address.tpl';
+			$this->response->setOutput($this->load->view('default/template/payment/amazon_checkout_address.tpl', $data));
 		}
-
-		$this->data['cart'] = $this->url->link('checkout/cart');
-		$this->data['text_cart'] = $this->language->get('text_cart');
-
-		$this->children = array(
-			'common/column_left',
-			'common/column_right',
-			'common/content_top',
-			'common/content_bottom',
-			'common/footer',
-			'common/header'
-		);
-
-		$this->response->setOutput($this->render(true));
 	}
 
-	public function payment_method() {
+	public function paymentMethod() {
 		if ($this->config->get('amazon_checkout_mode') == 'sandbox') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/sandbox/PaymentWidgets.js';
+			}
 		} elseif ($this->config->get('amazon_checkout_mode') == 'live') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/PaymentWidgets.js';
+			}
 		}
 
 		$this->document->addScript($amazon_payment_js);
+
+		$this->load->language('payment/amazon_checkout');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
 		if (isset($this->session->data['cba'])) {
 			$contract_id = $this->session->data['cba']['contract_id'];
 		} else {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('payment/amazon_checkout');
 
-		$this->data['heading_title'] = $this->language->get('heading_title');
-		$this->data['heading_payment'] = $this->language->get('heading_payment');
-		$this->data['text_back'] = $this->language->get('text_back');
-		$this->data['text_continue'] = $this->language->get('text_continue');
-		$this->data['error_payment_method'] = $this->language->get('error_payment_method');
+		$data['heading_title'] = $this->language->get('heading_title');
+		$data['heading_payment'] = $this->language->get('heading_payment');
+		$data['text_back'] = $this->language->get('text_back');
+		$data['text_continue'] = $this->language->get('text_continue');
+		$data['error_payment_method'] = $this->language->get('error_payment_method');
 
-		$this->data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
-		$this->data['confirm_order'] = $this->url->link('payment/amazon_checkout/confirm', '', 'SSL');
+		$data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
+		$data['confirm_order'] = $this->url->link('payment/amazon_checkout/confirm', '', 'SSL');
 
-		$this->data['continue'] = $this->url->link('payment/amazon_checkout/confirm', '', 'SSL');
-		$this->data['back'] = $this->url->link('payment/amazon_checkout/address', '', 'SSL');
-		$this->data['text_back'] = $this->language->get('text_back');
+		$data['continue'] = $this->url->link('payment/amazon_checkout/confirm', '', 'SSL');
+		$data['back'] = $this->url->link('payment/amazon_checkout/address', '', 'SSL');
+		$data['text_back'] = $this->language->get('text_back');
+
+		$data['column_left'] = $this->load->controller('common/column_left');
+		$data['column_right'] = $this->load->controller('common/column_right');
+		$data['content_top'] = $this->load->controller('common/content_top');
+		$data['content_bottom'] = $this->load->controller('common/content_bottom');
+		$data['footer'] = $this->load->controller('common/footer');
+		$data['header'] = $this->load->controller('common/header');
 
 		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_payment.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/payment/amazon_checkout_payment.tpl';
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/payment/amazon_checkout_payment.tpl', $data));
 		} else {
-			$this->template = 'default/template/payment/amazon_checkout_payment.tpl';
+			$this->response->setOutput($this->load->view('default/template/payment/amazon_checkout_payment.tpl', $data));
 		}
-
-		$this->children = array(
-			'common/column_left',
-			'common/column_right',
-			'common/content_top',
-			'common/content_bottom',
-			'common/footer',
-			'common/header'
-		);
-
-		$this->response->setOutput($this->render(true));
 	}
 
 	public function confirm() {
-		$this->load->model('setting/extension');
+		$this->load->model('extension/extension');
 		$this->load->model('account/address');
+		$this->load->model('account/custom_field');
 		$this->load->model('payment/amazon_checkout');
 		$this->load->library('cba');
-		$this->language->load('checkout/checkout');
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('checkout/checkout');
+		$this->load->language('payment/amazon_checkout');
 
 		if ($this->config->get('amazon_checkout_mode') == 'sandbox') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/sandbox/PaymentWidgets.js';
+			}
 		} elseif ($this->config->get('amazon_checkout_mode') == 'live') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/PaymentWidgets.js';
+			}
 		}
 
 		$this->document->addScript($amazon_payment_js);
@@ -135,23 +154,23 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		$this->document->setTitle($this->language->get('heading_title'));
 
 		if (!isset($this->session->data['cba']) || !isset($this->session->data['cba']['shipping_method'])) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
 		// Validate cart has products and has stock.
 		if (!empty($this->session->data['vouchers']) || !$this->cart->hasProducts() || (!$this->cart->hasStock() && !$this->config->get('config_stock_checkout'))) {
-			$this->redirect($this->url->link('checkout/cart'));
+			$this->response->redirect($this->url->link('checkout/cart'));
 		}
 
-		$this->data['heading_confirm'] = $this->language->get('heading_confirm');
-		$this->data['column_name'] = $this->language->get('column_name');
-		$this->data['column_model'] = $this->language->get('column_model');
-		$this->data['column_quantity'] = $this->language->get('column_quantity');
-		$this->data['column_price'] = $this->language->get('column_price');
-		$this->data['column_total'] = $this->language->get('column_total');
-		$this->data['text_confirm'] = $this->language->get('text_confirm');
+		$data['heading_confirm'] = $this->language->get('heading_confirm');
+		$data['column_name'] = $this->language->get('column_name');
+		$data['column_model'] = $this->language->get('column_model');
+		$data['column_quantity'] = $this->language->get('column_quantity');
+		$data['column_price'] = $this->language->get('column_price');
+		$data['column_total'] = $this->language->get('column_total');
+		$data['text_confirm'] = $this->language->get('text_confirm');
 
-		// Validate minimum quantity requirments.
+		// Validate minimum quantity requirements.
 		$products = $this->cart->getProducts();
 
 		foreach ($products as $product) {
@@ -164,7 +183,7 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			}
 
 			if ($product['minimum'] > $product_total) {
-				$this->redirect($this->url->link('checkout/cart'));
+				$this->response->redirect($this->url->link('checkout/cart'));
 			}
 		}
 
@@ -179,7 +198,7 @@ class ControllerPaymentAmazonCheckout extends Controller {
 
 		$this->session->data['shipping_method'] = $this->session->data['cba']['shipping_method'];
 
-		$results = $this->model_setting_extension->getExtensions('total');
+		$results = $this->model_extension_extension->getExtensions('total');
 
 		foreach ($results as $key => $value) {
 			if (isset($value['code'])) {
@@ -201,15 +220,12 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			if ($this->config->get($code . '_status')) {
 				$this->load->model('total/' . $code);
 
-				$total_count_before = count($total_data);
-
 				$this->{'model_total_' . $code}->getTotal($total_data, $total, $taxes);
 
-				$total_count_after = count($total_data);
-
-				for ($i = $total_count_before; $i < $total_count_after; $i++) {
-					$total_data[$i]['code'] = $code;
+				if (!empty($total_data[count($total_data) - 1]) && !isset($total_data[count($total_data) - 1]['code'])) {
+					$total_data[count($total_data) - 1]['code'] = $code;
 				}
+
 				$tax_difference = 0;
 
 				foreach ($taxes as $tax_id => $value) {
@@ -242,34 +258,34 @@ class ControllerPaymentAmazonCheckout extends Controller {
 
 		array_multisort($sort_order, SORT_ASC, $total_data);
 
-		$data = array();
+		$order_data = array();
 
-		$data['invoice_prefix'] = $this->config->get('config_invoice_prefix');
-		$data['store_id'] = $this->config->get('config_store_id');
-		$data['store_name'] = $this->config->get('config_name');
+		$order_data['invoice_prefix'] = $this->config->get('config_invoice_prefix');
+		$order_data['store_id'] = $this->config->get('config_store_id');
+		$order_data['store_name'] = $this->config->get('config_name');
 
-		if ($data['store_id']) {
-			$data['store_url'] = $this->config->get('config_url');
+		if ($order_data['store_id']) {
+			$order_data['store_url'] = $this->config->get('config_url');
 		} else {
-			$data['store_url'] = HTTP_SERVER;
+			$order_data['store_url'] = HTTP_SERVER;
 		}
 
 		if ($this->customer->isLogged()) {
-			$data['customer_id'] = $this->customer->getId();
-			$data['customer_group_id'] = $this->customer->getCustomerGroupId();
-			$data['firstname'] = '';
-			$data['lastname'] = '';
-			$data['email'] = '';
-			$data['telephone'] = '';
-			$data['fax'] = $this->customer->getFax();
+			$order_data['customer_id'] = $this->customer->getId();
+			$order_data['customer_group_id'] = $this->customer->getGroupId();
+			$order_data['firstname'] = '';
+			$order_data['lastname'] = '';
+			$order_data['email'] = '';
+			$order_data['telephone'] = '';
+			$order_data['fax'] = $this->customer->getFax();
 		} else {
-			$data['customer_id'] = 0;
-			$data['customer_group_id'] = $this->config->get('config_customer_group_id');
-			$data['firstname'] = '';
-			$data['lastname'] = '';
-			$data['email'] = '';
-			$data['telephone'] = '';
-			$data['fax'] = '';
+			$order_data['customer_id'] = 0;
+			$order_data['customer_group_id'] = $this->config->get('config_customer_group_id');
+			$order_data['firstname'] = '';
+			$order_data['lastname'] = '';
+			$order_data['email'] = '';
+			$order_data['telephone'] = '';
+			$order_data['fax'] = '';
 		}
 
 		if (isset($this->session->data['coupon'])) {
@@ -278,53 +294,53 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			$coupon = $this->model_checkout_coupon->getCoupon($this->session->data['coupon']);
 
 			if ($coupon) {
-				$data['coupon_id'] = $coupon['coupon_id'];
-				$data['cba_free_shipping'] = $coupon['shipping'];
+				$order_data['coupon_id'] = $coupon['coupon_id'];
+				$order_data['cba_free_shipping'] = $coupon['shipping'];
 			} else {
-				$data['coupon_id'] = 0;
-				$data['cba_free_shipping'] = '0';
+				$order_data['coupon_id'] = 0;
+				$order_data['cba_free_shipping'] = '0';
 			}
 		} else {
-			$data['coupon_id'] = 0;
-			$data['cba_free_shipping'] = '0';
+			$order_data['coupon_id'] = 0;
+			$order_data['cba_free_shipping'] = '0';
 		}
 
-		$data['payment_firstname'] = '';
-		$data['payment_lastname'] = '';
-		$data['payment_company'] = '';
-		$data['payment_company_id'] = '';
-		$data['payment_tax_id'] = '';
-		$data['payment_address_1'] = '';
-		$data['payment_address_2'] = '';
-		$data['payment_city'] = '';
-		$data['payment_postcode'] = '';
-		$data['payment_zone'] = '';
-		$data['payment_zone_id'] = '';
-		$data['payment_country'] = '';
-		$data['payment_country_id'] = '';
-		$data['payment_address_format'] = '';
+		$order_data['payment_firstname'] = '';
+		$order_data['payment_lastname'] = '';
+		$order_data['payment_company'] = '';
+		$order_data['payment_company_id'] = '';
+		$order_data['payment_tax_id'] = '';
+		$order_data['payment_address_1'] = '';
+		$order_data['payment_address_2'] = '';
+		$order_data['payment_city'] = '';
+		$order_data['payment_postcode'] = '';
+		$order_data['payment_zone'] = '';
+		$order_data['payment_zone_id'] = '';
+		$order_data['payment_country'] = '';
+		$order_data['payment_country_id'] = '';
+		$order_data['payment_address_format'] = '';
 
-		$data['payment_method'] = $this->language->get('text_cba');
-		$data['payment_code'] = 'amazon_checkout';
+		$order_data['payment_method'] = $this->language->get('text_cba');
+		$order_data['payment_code'] = 'amazon_checkout';
 
-		$data['shipping_firstname'] = '';
-		$data['shipping_lastname'] = '';
-		$data['shipping_company'] = '';
-		$data['shipping_address_1'] = '';
-		$data['shipping_address_2'] = '';
-		$data['shipping_city'] = '';
-		$data['shipping_postcode'] = '';
-		$data['shipping_zone'] = '';
-		$data['shipping_zone_id'] = '';
-		$data['shipping_country'] = '';
-		$data['shipping_country_id'] = '';
-		$data['shipping_address_format'] = '';
-		$data['shipping_method'] = $this->session->data['cba']['shipping_method']['title'];
+		$order_data['shipping_firstname'] = '';
+		$order_data['shipping_lastname'] = '';
+		$order_data['shipping_company'] = '';
+		$order_data['shipping_address_1'] = '';
+		$order_data['shipping_address_2'] = '';
+		$order_data['shipping_city'] = '';
+		$order_data['shipping_postcode'] = '';
+		$order_data['shipping_zone'] = '';
+		$order_data['shipping_zone_id'] = '';
+		$order_data['shipping_country'] = '';
+		$order_data['shipping_country_id'] = '';
+		$order_data['shipping_address_format'] = '';
+		$order_data['shipping_method'] = $this->session->data['cba']['shipping_method']['title'];
 
 		if (isset($this->session->data['cba']['shipping_method']['code'])) {
-			$data['shipping_code'] = $this->session->data['cba']['shipping_method']['code'];
+			$order_data['shipping_code'] = $this->session->data['cba']['shipping_method']['code'];
 		} else {
-			$data['shipping_code'] = '';
+			$order_data['shipping_code'] = '';
 		}
 
 		$product_data = array();
@@ -333,186 +349,188 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			$option_data = array();
 
 			foreach ($product['option'] as $option) {
-				if (isset($option['type'])) {
-					if ($option['type'] != 'file') {
-						$value = $option['option_value'];
-					} else {
-						$value = $this->encryption->decrypt($option['option_value']);
-					}
-				} else {
+				if ($option['type'] != 'file') {
 					$value = $option['value'];
+				} else {
+					$value = $this->encryption->decrypt($option['value']);
 				}
 
 				$option_data[] = array(
-					'product_option_id' => (isset($option['product_option_id']) ? $option['product_option_id'] : ''),
+					'product_option_id'       => $option['product_option_id'],
 					'product_option_value_id' => $option['product_option_value_id'],
-					'option_id' => (isset($option['option_id'])) ? $option['option_id'] : '',
-					'option_value_id' => (isset($option['option_value_id'])) ? $option['option_value_id'] : '',
-					'name' => $option['name'],
-					'value' => $value,
-					'type' => (isset($option['type'])) ? $option['type'] : '',
-					'prefix' => (isset($option['prefix'])) ? $option['prefix'] : ''
+					'option_id'               => $option['option_id'],
+					'option_value_id'         => $option['option_value_id'],
+					'name'                    => $option['name'],
+					'value'                   => $value,
+					'type'                    => $option['type']
 				);
-			}
-
-
-			$product_tax = $this->tax->getTax($product['price'], $product['tax_class_id']);
-
-			if (isset($product['reward'])) {
-				$reward = $product['reward'];
-			} else {
-				$reward = '';
-			}
-
-			if (isset($product['subtract'])) {
-				$subtract = $product['subtract'];
-			} else {
-				$subtract = '';
 			}
 
 			$product_data[] = array(
 				'product_id' => $product['product_id'],
-				'name' => $product['name'],
-				'model' => $product['model'],
-				'option' => $option_data,
-				'download' => $product['download'],
-				'quantity' => $product['quantity'],
-				'subtract' => $subtract,
-				'price' => $product['price'],
-				'total' => $product['total'],
-				'tax' => $product_tax,
-				'reward' => $reward,
+				'name'       => $product['name'],
+				'model'      => $product['model'],
+				'option'     => $option_data,
+				'download'   => $product['download'],
+				'quantity'   => $product['quantity'],
+				'subtract'   => $product['subtract'],
+				'price'      => $product['price'],
+				'total'      => $product['total'],
+				'tax'        => $this->tax->getTax($product['price'], $product['tax_class_id']),
+				'reward'     => $product['reward']
 			);
-
 		}
 
-		$data['products'] = $product_data;
-		$data['vouchers'] = array();
-		$data['totals'] = $total_data;
+		$order_data['products'] = $product_data;
+		$order_data['vouchers'] = array();
+		$order_data['totals'] = $total_data;
 
-		$data['comment'] = '';
-		$data['total'] = $total;
+		$order_data['comment'] = '';
+		$order_data['total'] = $total;
 
 		if (isset($this->request->cookie['tracking'])) {
-			$this->load->model('affiliate/affiliate');
+			$order_data['tracking'] = $this->request->cookie['tracking'];
 
-			$affiliate_info = $this->model_affiliate_affiliate->getAffiliateByCode($this->request->cookie['tracking']);
 			$subtotal = $this->cart->getSubTotal();
 
+			$this->load->model('affiliate/affiliate');
+
+			// Affiliate
+			$affiliate_info = $this->model_affiliate_affiliate->getAffiliateByCode($this->request->cookie['tracking']);
+
 			if ($affiliate_info) {
-				$data['affiliate_id'] = $affiliate_info['affiliate_id'];
-				$data['commission'] = ($subtotal / 100) * $affiliate_info['commission'];
+				$order_data['affiliate_id'] = $affiliate_info['affiliate_id'];
+				$order_data['commission'] = ($subtotal / 100) * $affiliate_info['commission'];
 			} else {
-				$data['affiliate_id'] = 0;
-				$data['commission'] = 0;
+				$order_data['affiliate_id'] = 0;
+				$order_data['commission'] = 0;
+			}
+
+			// Marketing
+			$this->load->model('checkout/marketing');
+
+			$marketing_info = $this->model_checkout_marketing->getMarketingByCode($this->request->cookie['tracking']);
+
+			if ($marketing_info) {
+				$order_data['marketing_id'] = $marketing_info['marketing_id'];
+			} else {
+				$order_data['marketing_id'] = 0;
 			}
 		} else {
-			$data['affiliate_id'] = 0;
-			$data['commission'] = 0;
+			$order_data['affiliate_id'] = 0;
+			$order_data['commission'] = 0;
+			$order_data['marketing_id'] = 0;
+			$order_data['tracking'] = '';
 		}
 
-		$data['language_id'] = $this->config->get('config_language_id');
-		$data['currency_id'] = $this->currency->getId();
-		$data['currency_code'] = $this->currency->getCode();
-		$data['currency'] = $this->currency->getCode();
-		$data['currency_value'] = $this->currency->getValue($this->currency->getCode());
-		$data['value'] = $this->currency->getValue($this->currency->getCode());
-		$data['ip'] = $this->request->server['REMOTE_ADDR'];
+		$order_data['language_id'] = $this->config->get('config_language_id');
+		$order_data['currency_id'] = $this->currency->getId();
+		$order_data['currency_code'] = $this->currency->getCode();
+		$order_data['currency'] = $this->currency->getCode();
+		$order_data['currency_value'] = $this->currency->getValue($this->currency->getCode());
+		$order_data['value'] = $this->currency->getValue($this->currency->getCode());
+		$order_data['ip'] = $this->request->server['REMOTE_ADDR'];
 
 		if (!empty($this->request->server['HTTP_X_FORWARDED_FOR'])) {
-			$data['forwarded_ip'] = $this->request->server['HTTP_X_FORWARDED_FOR'];
+			$order_data['forwarded_ip'] = $this->request->server['HTTP_X_FORWARDED_FOR'];
 		} elseif (!empty($this->request->server['HTTP_CLIENT_IP'])) {
-			$data['forwarded_ip'] = $this->request->server['HTTP_CLIENT_IP'];
+			$order_data['forwarded_ip'] = $this->request->server['HTTP_CLIENT_IP'];
 		} else {
-			$data['forwarded_ip'] = '';
+			$order_data['forwarded_ip'] = '';
 		}
 
 		if (isset($this->request->server['HTTP_USER_AGENT'])) {
-			$data['user_agent'] = $this->request->server['HTTP_USER_AGENT'];
+			$order_data['user_agent'] = $this->request->server['HTTP_USER_AGENT'];
 		} else {
-			$data['user_agent'] = '';
+			$order_data['user_agent'] = '';
 		}
 
 		if (isset($this->request->server['HTTP_ACCEPT_LANGUAGE'])) {
-			$data['accept_language'] = $this->request->server['HTTP_ACCEPT_LANGUAGE'];
+			$order_data['accept_language'] = $this->request->server['HTTP_ACCEPT_LANGUAGE'];
 		} else {
-			$data['accept_language'] = '';
+			$order_data['accept_language'] = '';
 		}
 
 		$this->load->model('checkout/order');
 
-		$this->session->data['cba']['order_id'] = $this->model_checkout_order->addOrder($data);
+		$this->session->data['cba']['order_id'] = $this->model_checkout_order->addOrder($order_data);
 		$this->model_payment_amazon_checkout->addTaxesForTotals($this->session->data['cba']['order_id'], $total_data);
 
-		$this->model_payment_amazon_checkout->setOrderShipping($this->session->data['cba']['order_id'], $data['cba_free_shipping']);
+		$this->model_payment_amazon_checkout->setOrderShipping($this->session->data['cba']['order_id'], $order_data['cba_free_shipping']);
 
-		$this->data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
-		$this->data['process_order'] = $this->url->link('payment/amazon_checkout/process_order', '', 'SSL');
+		$data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
+		$data['process_order'] = $this->url->link('payment/amazon_checkout/processorder', '', 'SSL');
 
 		foreach ($this->cart->getProducts() as $product) {
-			$option_data = array();
+				$option_data = array();
 
-			foreach ($product['option'] as $option) {
-
-				if (isset($option['type'])) {
+				foreach ($product['option'] as $option) {
 					if ($option['type'] != 'file') {
-						$value = $option['option_value'];
+						$value = $option['value'];
 					} else {
-						$filename = $this->encryption->decrypt($option['option_value']);
+						$filename = $this->encryption->decrypt($option['value']);
 
 						$value = utf8_substr($filename, 0, utf8_strrpos($filename, '.'));
 					}
-				} else {
-					$value = $option['value'];
+
+					$option_data[] = array(
+						'name'  => $option['name'],
+						'value' => (utf8_strlen($value) > 20 ? utf8_substr($value, 0, 20) . '..' : $value)
+					);
 				}
 
-				$option_data[] = array(
-					'name' => $option['name'],
-					'value' => (utf8_strlen($value) > 20 ? utf8_substr($value, 0, 20) . '..' : $value)
-				);
-			}
-
-			$this->data['products'][] = array(
+			$data['products'][] = array(
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'model' => $product['model'],
 				'option' => $option_data,
 				'quantity' => $product['quantity'],
 				'price' => $this->currency->format($this->tax->calculate($product['price'], $product['tax_class_id'], $this->config->get('config_tax'))),
-				'total' => $this->currency->format($this->tax->calculate($product['price'], $product['tax_class_id'], $this->config->get('config_tax')) * $product['quantity']),
+				'total' => $this->currency->format($this->tax->calculate($product['price'], $product['tax_class_id'], $this->config->get('config_tax')) * $product['quantity'])
 			);
 		}
 
-		$this->data['vouchers'] = array();
+		$data['vouchers'] = array();
 
-		$this->data['totals'] = $total_data;
+		$data['totals'] = array();
 
-		$this->data['back'] = $this->url->link('payment/amazon_checkout/payment_method', '', 'SSL');
-		$this->data['text_back'] = $this->language->get('text_back');
-
-		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_confirm.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/payment/amazon_checkout_confirm.tpl';
-		} else {
-			$this->template = 'default/template/payment/amazon_checkout_confirm.tpl';
+		foreach ($total_data as $total) {
+			$data['totals'][] = array(
+				'title' => $total['title'],
+				'text'  => $this->currency->format($total['value'])
+			);
 		}
 
-		$this->children = array(
-			'common/column_left',
-			'common/column_right',
-			'common/content_top',
-			'common/content_bottom',
-			'common/footer',
-			'common/header'
-		);
+		$data['back'] = $this->url->link('payment/amazon_checkout/payment_method', '', 'SSL');
+		$data['text_back'] = $this->language->get('text_back');
 
-		$this->response->setOutput($this->render(true));
+		$data['column_left'] = $this->load->controller('common/column_left');
+		$data['column_right'] = $this->load->controller('common/column_right');
+		$data['content_top'] = $this->load->controller('common/content_top');
+		$data['content_bottom'] = $this->load->controller('common/content_bottom');
+		$data['footer'] = $this->load->controller('common/footer');
+		$data['header'] = $this->load->controller('common/header');
+
+		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_confirm.tpl')) {
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/payment/amazon_checkout_confirm.tpl', $data));
+		} else {
+			$this->response->setOutput($this->load->view('default/template/payment/amazon_checkout_confirm.tpl', $data));
+		}
 	}
 
-	public function process_order() {
+	public function processOrder() {
 		if ($this->config->get('amazon_checkout_mode') == 'sandbox') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/sandbox/PaymentWidgets.js';
+			}
 		} elseif ($this->config->get('amazon_checkout_mode') == 'live') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/PaymentWidgets.js';
+			}
 		}
 
 		$this->document->addScript($amazon_payment_js);
@@ -520,13 +538,13 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		$this->load->library('cba');
 		$this->load->model('checkout/order');
 		$this->load->model('checkout/coupon');
-		$this->load->model('setting/extension');
+		$this->load->model('extension/extension');
 		$this->load->model('account/order');
 		$this->load->model('payment/amazon_checkout');
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('payment/amazon_checkout');
 
 		if (!isset($this->session->data['cba']['order_id'])) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
 		if (isset($this->session->data['coupon'])) {
@@ -565,10 +583,10 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		foreach ($ordered_products as $product) {
 
 			$parameters_items['products'][] = array(
-				'title' => html_entity_decode($product['name'], ENT_QUOTES, 'UTF-8'),
-				'model' => $product['order_product_id'],
+				'title'    => html_entity_decode($product['name'], ENT_QUOTES, 'UTF-8'),
+				'model'    => $product['order_product_id'],
 				'quantity' => $product['quantity'],
-				'price' => $this->currency->format($product['price'] + $product['tax'], $currency_code, '', false),
+				'price'    => $this->currency->format($product['price'] + $product['tax'], $currency_code, '', false)
 			);
 
 			$total += ($product['price'] + $product['tax']) * $product['quantity'];
@@ -582,7 +600,7 @@ class ControllerPaymentAmazonCheckout extends Controller {
 				'title' => $order_total['title'],
 				'model' => 'ot_' . $order_total['order_total_id'],
 				'quantity' => 1,
-				'price' => $this->currency->format($order_total['price'], $currency_code, '', false),
+				'price' => $this->currency->format($order_total['price'], $currency_code, '', false)
 			);
 
 			$total += $order_total['price'];
@@ -592,11 +610,11 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		$parameters_items['contract_id'] = $this->session->data['cba']['contract_id'];
 
 		$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'),
-				$this->config->get('amazon_checkout_access_secret'));
+				$this->config->get('amazon_checkout_access_secret'), $this->config->get('amazon_checkout_marketplace'));
 		$cba->setMode($this->config->get('amazon_checkout_mode'));
 
 		if ($cba->setPurchaseItems($parameters_items) !== true) {
-			$this->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
+			$this->response->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
 		}
 
 		$order_discount = $order['total'] - $total;
@@ -617,7 +635,7 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		}
 
 		if (!$cba->setContractCharges($parameters_charges)) {
-			$this->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
+			$this->response->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
 		}
 
 		$complete_parameters = array();
@@ -630,27 +648,60 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		if ($amazon_order_ids) {
 			$this->model_payment_amazon_checkout->addAmazonOrderId($order['order_id'], $amazon_order_ids[0]);
 		} else {
-			$this->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
+			$this->response->redirect($this->url->link('payment/amazon_checkout/failure', '', 'SSL'));
 		}
 
-		$this->model_checkout_order->confirm($order['order_id'], $this->config->get('amazon_checkout_order_default_status'));
-		$this->redirect($this->url->link('payment/amazon_checkout/success', 'amazon_order_id=' . $amazon_order_ids[0], 'SSL'));
+		$this->model_checkout_order->addOrderHistory($order['order_id'], $this->config->get('amazon_checkout_order_status_id'));
+
+		$this->response->redirect($this->url->link('payment/amazon_checkout/success', 'amazon_order_id=' . $amazon_order_ids[0], 'SSL'));
 	}
 
 	public function success() {
 		if ($this->config->get('amazon_checkout_mode') == 'sandbox') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/sandbox/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/sandbox/PaymentWidgets.js';
+			}
 		} elseif ($this->config->get('amazon_checkout_mode') == 'live') {
-			$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			if ($this->config->get('amazon_checkout_marketplace') == 'uk') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/gb/PaymentWidgets.js';
+			} elseif ($this->config->get('amazon_checkout_marketplace') == 'de') {
+				$amazon_payment_js = 'https://static-eu.payments-amazon.com/cba/js/de/PaymentWidgets.js';
+			}
 		}
 
 		$this->document->addScript($amazon_payment_js);
 
-		$this->data = array_merge($this->language->load('payment/amazon_checkout'), $this->data);
+		$this->load->language('payment/amazon_checkout');
+
 		$this->document->setTitle($this->language->get('heading_title'));
 
-		$this->data['amazon_order_id'] = $this->request->get['amazon_order_id'];
-		$this->data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
+		$data['heading_title'] = $this->language->get('heading_title');
+		$data['heading_address'] = $this->language->get('heading_title');
+		$data['heading_payment'] = $this->language->get('heading_title');
+		$data['heading_confirm'] = $this->language->get('heading_title');
+
+		$data['text_back'] = $this->language->get('text_back');
+		$data['text_cart'] = $this->language->get('text_cart');
+		$data['text_confirm'] = $this->language->get('text_confirm');
+		$data['text_continue'] = $this->language->get('text_continue');
+		$data['text_cba'] = $this->language->get('text_cba');
+		$data['text_enter_coupon'] = $this->language->get('text_enter_coupon');
+		$data['text_coupon'] = $this->language->get('text_coupon');
+		$data['text_tax_other'] = $this->language->get('text_tax_other');
+		$data['text_payment_failed'] = $this->language->get('text_payment_failed');
+		$data['text_success_title'] = $this->language->get('text_success_title');
+		$data['text_payment_success'] = $this->language->get('text_payment_success');
+
+		$data['error_payment_method'] = $this->language->get('error_payment_method');
+		$data['error_shipping'] = $this->language->get('error_shipping');
+		$data['error_shipping_address'] = $this->language->get('error_shipping_address');
+		$data['error_shipping_methods'] = $this->language->get('error_shipping_methods');
+		$data['error_no_shipping_methods'] = $this->language->get('error_no_shipping_methods');
+
+		$data['amazon_order_id'] = $this->request->get['amazon_order_id'];
+		$data['merchant_id'] = $this->config->get('amazon_checkout_merchant_id');
 
 		$this->cart->clear();
 		unset($this->session->data['cba']);
@@ -666,67 +717,58 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		unset($this->session->data['voucher']);
 		unset($this->session->data['vouchers']);
 
+		$data['column_left'] = $this->load->controller('common/column_left');
+		$data['column_right'] = $this->load->controller('common/column_right');
+		$data['content_top'] = $this->load->controller('common/content_top');
+		$data['content_bottom'] = $this->load->controller('common/content_bottom');
+		$data['footer'] = $this->load->controller('common/footer');
+		$data['header'] = $this->load->controller('common/header');
+
 		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_success.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/payment/amazon_checkout_success.tpl';
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/payment/amazon_checkout_success.tpl', $data));
 		} else {
-			$this->template = 'default/template/payment/amazon_checkout_success.tpl';
+			$this->response->setOutput($this->load->view('default/template/payment/amazon_checkout_success.tpl', $data));
 		}
-
-		$this->children = array(
-			'common/column_left',
-			'common/column_right',
-			'common/content_top',
-			'common/content_bottom',
-			'common/footer',
-			'common/header'
-		);
-
-		$this->response->setOutput($this->render(true));
 	}
 
 	public function failure() {
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('payment/amazon_checkout');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
-		$this->data['heading_title'] = $this->language->get('heading_title');
-		$this->data['text_payment_failed'] = $this->language->get('text_payment_failed');
+		$data['heading_title'] = $this->language->get('heading_title');
+		$data['text_payment_failed'] = $this->language->get('text_payment_failed');
+
+		$data['column_left'] = $this->load->controller('common/column_left');
+		$data['column_right'] = $this->load->controller('common/column_right');
+		$data['content_top'] = $this->load->controller('common/content_top');
+		$data['content_bottom'] = $this->load->controller('common/content_bottom');
+		$data['footer'] = $this->load->controller('common/footer');
+		$data['header'] = $this->load->controller('common/header');
 
 		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/amazon_checkout_failure.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/payment/amazon_checkout_failure.tpl';
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/payment/amazon_checkout_failure.tpl', $data));
 		} else {
-			$this->template = 'default/template/payment/amazon_checkout_failure.tpl';
+			$this->response->setOutput($this->load->view('default/template/payment/amazon_checkout_failure.tpl', $data));
 		}
-
-		$this->children = array(
-			'common/column_left',
-			'common/column_right',
-			'common/content_top',
-			'common/content_bottom',
-			'common/footer',
-			'common/header'
-		);
-
-
-		$this->response->setOutput($this->render(true));
 	}
 
-	public function shipping_quotes() {
-		$this->load->model('setting/extension');
+	public function shippingQuotes() {
+		$this->load->model('extension/extension');
 
 		$this->load->library('cba');
 		$this->load->model('payment/amazon_checkout');
 
-		$this->language->load('payment/amazon_checkout');
+		$this->load->language('payment/amazon_checkout');
 
 		if (!isset($this->session->data['cba'])) {
-			$this->redirect($this->url->link('common/home'));
+			$this->response->redirect($this->url->link('common/home'));
 		}
 
 		$contract_id = $this->session->data['cba']['contract_id'];
 
 		$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'),
-				$this->config->get('amazon_checkout_access_secret'));
+				$this->config->get('amazon_checkout_access_secret'), $this->config->get('amazon_checkout_marketplace'));
 		$cba->setMode($this->config->get('amazon_checkout_mode'));
 
 		$response = $cba->getPurchaseContract($contract_id);
@@ -769,7 +811,6 @@ class ControllerPaymentAmazonCheckout extends Controller {
 				$zone = '';
 			}
 
-
 			$this->tax->setShippingAddress($country_id, $zone_id);
 
 			$address = array(
@@ -789,12 +830,12 @@ class ControllerPaymentAmazonCheckout extends Controller {
 				'country' => $country_name,
 				'iso_code_2' => $iso_code2,
 				'iso_code_3' => $iso_code3,
-				'address_format' => $address_format,
+				'address_format' => $address_format
 			);
 
 			$quotes = array();
 
-			$results = $this->model_setting_extension->getExtensions('shipping');
+			$results = $this->model_extension_extension->getExtensions('shipping');
 
 			foreach ($results as $result) {
 
@@ -846,26 +887,28 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			$json['error'] = $this->language->get('error_shipping_methods');
 		}
 
+		$this->response->addHeader('Content-Type: application/json');
 		$this->response->setOutput(json_encode($json));
 	}
 
-	public function set_shipping() {
+	public function setShipping() {
 		$json = array();
 
 		if (isset($this->request->post['shipping_method'])) {
 			$shipping_method = explode('.', $this->request->post['shipping_method']);
 
 			if (!isset($shipping_method[0]) || !isset($shipping_method[1]) || !isset($this->session->data['cba']['shipping_methods'][$shipping_method[0]]['quote'][$shipping_method[1]]) ) {
-				$this->redirect($this->url->link('common/home'));
+				$this->response->redirect($this->url->link('common/home'));
 			}
 
 			$this->session->data['cba']['shipping_method'] = $this->session->data['cba']['shipping_methods'][$shipping_method[0]]['quote'][$shipping_method[1]];
 
-			$json['redirect'] = $this->url->link('payment/amazon_checkout/payment_method', '', 'SSL');
+			$json['redirect'] = $this->url->link('payment/amazon_checkout/paymentMethod', '', 'SSL');
 		} else {
-			$json['redirect'] = $this->url->link('payment/amazon_checkout/payment_method', '', 'SSL');
+			$json['redirect'] = $this->url->link('payment/amazon_checkout/paymentMethod', '', 'SSL');
 		}
 
+		$this->response->addHeader('Content-Type: application/json');
 		$this->response->setOutput(json_encode($json));
 	}
 
@@ -874,7 +917,7 @@ class ControllerPaymentAmazonCheckout extends Controller {
 			$this->load->model('payment/amazon_checkout');
 			$this->load->library('cba');
 
-			$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'), $this->config->get('amazon_checkout_access_secret'));
+			$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'), $this->config->get('amazon_checkout_access_secret'), $this->config->get('amazon_checkout_marketplace'));
 			$cba->setMode('live');
 
 			$cba->processOrderReports($this->config, $this->db);
@@ -884,4 +927,3 @@ class ControllerPaymentAmazonCheckout extends Controller {
 		}
 	}
 }
-?>

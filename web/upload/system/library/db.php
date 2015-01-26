@@ -1,35 +1,30 @@
 <?php
 class DB {
-	private $driver;
+	private $db;
 
 	public function __construct($driver, $hostname, $username, $password, $database) {
-		$file = DIR_DATABASE . $driver . '.php';
+		$class = 'DB\\' . $driver;
 
-		if (file_exists($file)) {
-			require_once($file);
-
-			$class = 'DB' . $driver;
-
-			$this->driver = new $class($hostname, $username, $password, $database);
+		if (class_exists($class)) {
+			$this->db = new $class($hostname, $username, $password, $database);
 		} else {
-			exit('Error: Could not load database driver type ' . $driver . '!');
+			exit('Error: Could not load database driver ' . $driver . '!');
 		}
 	}
 
 	public function query($sql) {
-		return $this->driver->query($sql);
+		return $this->db->query($sql);
 	}
 
 	public function escape($value) {
-		return $this->driver->escape($value);
+		return $this->db->escape($value);
 	}
 
 	public function countAffected() {
-		return $this->driver->countAffected();
+		return $this->db->countAffected();
 	}
 
 	public function getLastId() {
-		return $this->driver->getLastId();
+		return $this->db->getLastId();
 	}
 }
-?>

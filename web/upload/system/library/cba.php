@@ -4,12 +4,14 @@ class CBA {
 	private $secret_key;
 	private $merchant_id;
 	private $contract_id;
+	private $marketplace;
 	private $mode;
 
-	public function __construct($merchant_id, $access_key, $secret_key) {
+	public function __construct($merchant_id, $access_key, $secret_key, $marketplace) {
 		$this->setMerchantId($merchant_id);
 		$this->setAccessKey($access_key);
 		$this->setSecretKey($secret_key);
+		$this->setMarketplace($marketplace);
 	}
 
 	public function scheduleReports() {
@@ -176,9 +178,9 @@ class CBA {
 
 					$order_id = $result['order_id'];
 
-					$db->query("UPDATE `" . DB_PREFIX . "order` AS `o`, `" . DB_PREFIX . "order_amazon` `oa` SET `o`.`payment_firstname` = '" . $db->escape($billing_name) . "', `o`.`firstname` = '" . $db->escape($billing_name) . "', `o`.`email` = '" . $db->escape($billing_email) . "', `o`.`telephone` = '" . $db->escape($billing_phone_number) . "', `o`.`shipping_firstname` = '" . $db->escape($shipping_name) . "', `o`.`shipping_address_1` = '" . $db->escape($shipping_address1) . "', `o`.`shipping_address_2` = '" . $db->escape($shipping_address2) . "', `o`.`shipping_city` = '" . $db->escape($shipping_city) . "', `o`.`shipping_zone` = '" . $db->escape($shipping_zone) . "', `o`.`shipping_country` = '" . $db->escape($shipping_country_code) . "', `o`.`shipping_postcode` = '" . $db->escape($shipping_post_code) . "', `o`.`order_status_id` = " . (int)$settings->get('amazon_checkout_order_ready_status') . " WHERE `o`.`order_id` = " . (int)$order_id);
+					$db->query("UPDATE `" . DB_PREFIX . "order` AS `o`, `" . DB_PREFIX . "order_amazon` `oa` SET `o`.`payment_firstname` = '" . $db->escape($billing_name) . "', `o`.`firstname` = '" . $db->escape($billing_name) . "', `o`.`email` = '" . $db->escape($billing_email) . "', `o`.`telephone` = '" . $db->escape($billing_phone_number) . "', `o`.`shipping_firstname` = '" . $db->escape($shipping_name) . "', `o`.`shipping_address_1` = '" . $db->escape($shipping_address1) . "', `o`.`shipping_address_2` = '" . $db->escape($shipping_address2) . "', `o`.`shipping_city` = '" . $db->escape($shipping_city) . "', `o`.`shipping_zone` = '" . $db->escape($shipping_zone) . "', `o`.`shipping_country` = '" . $db->escape($shipping_country_code) . "', `o`.`shipping_postcode` = '" . $db->escape($shipping_post_code) . "', `o`.`order_status_id` = " . (int)$settings->get('amazon_checkout_ready_status_id') . " WHERE `o`.`order_id` = " . (int)$order_id);
 
-					$db->query("INSERT INTO `" . DB_PREFIX . "order_history` (`order_id`, `order_status_id`, `comment`, `date_added`) VALUES (" . (int)$order_id . ", " . (int)$settings->get('amazon_checkout_order_ready_status') . ", '', NOW())");
+					$db->query("INSERT INTO `" . DB_PREFIX . "order_history` (`order_id`, `order_status_id`, `comment`, `date_added`) VALUES (" . (int)$order_id . ", " . (int)$settings->get('amazon_checkout_ready_status_id') . ", '', NOW())");
 
 					foreach ($message->OrderReport->Item as $item) {
 						$amazon_order_item_code = (string)$item->AmazonOrderItemCode;
@@ -271,17 +273,17 @@ class CBA {
 		$response_xml = simplexml_load_string($response);
 
 		$cba_log = new Log('cba.log');
-		$cba_log->write('Marked order ' . $order['amazon_order_id'] .' as canceled. Response  ' . print_r($response_xml, 1));
+		$cba_log->write('Marked order ' . $order['amazon_order_id'] . ' as canceled. Response  ' . print_r($response_xml, 1));
 	}
 
 	public function orderShipped($order) {
 		$xml = '<?xml version="1.0"?>
-<AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd"> 
-  <Header> 
+<AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
+  <Header>
 	<DocumentVersion>1.01</DocumentVersion>
 	<MerchantIdentifier>' . $this->getMerchantId() . '</MerchantIdentifier>
   </Header>
-  <MessageType>OrderFulfillment</MessageType> 
+  <MessageType>OrderFulfillment</MessageType>
   <Message>
 	<MessageID>1</MessageID>
 	<OrderFulfillment>
@@ -319,7 +321,7 @@ class CBA {
 		$response_xml = simplexml_load_string($response);
 
 		$cba_log = new Log('cba.log');
-		$cba_log->write('Marked order ' . $order['amazon_order_id'] .' as shippped. Response  ' . print_r($response_xml, 1));
+		$cba_log->write('Marked order ' . $order['amazon_order_id'] . ' as shippped. Response  ' . print_r($response_xml, 1));
 	}
 
 	public function setPurchaseItems($parameters) {
@@ -403,7 +405,11 @@ class CBA {
 	}
 
 	private function getMwsResponse($http_method, $uri, $get_args, $post_args, $post_body = '', $headers = array()) {
-		$string_to_sign = $http_method . "\nmws.amazonservices.co.uk\n" . $uri . "\n";
+		if ($this->getMarketplace() == 'uk') {
+			$string_to_sign = $http_method . "\nmws.amazonservices.co.uk\n" . $uri . "\n";
+		} elseif ($this->getMarketplace() == 'de') {
+			$string_to_sign = $http_method . "\nmws.amazonservices.de\n" . $uri . "\n";
+		}
 
 		if (!empty($get_args)) {
 			uksort($get_args, 'strcmp');
@@ -421,7 +427,11 @@ class CBA {
 			$post_data = $post_body;
 		}
 
-		$request_url = 'https://mws.amazonservices.co.uk' . $uri;
+		if ($this->getMarketplace() == 'uk') {
+			$request_url = 'https://mws.amazonservices.co.uk' . $uri;
+		} elseif ($this->getMarketplace() == 'de') {
+			$request_url = 'https://mws.amazonservices.de' . $uri;
+		}
 
 		if (!empty($get_args)) {
 			$request_url .= '?' . $this->getParametersAsString($get_args);
@@ -455,9 +465,17 @@ class CBA {
 		$string_to_sign = $http_method . "\n";
 
 		if ($this->getMode() == 'live') {
-			$string_to_sign .= "payments.amazon.co.uk\n";
+			if ($this->getMarketplace() == 'uk') {
+				$string_to_sign .= "payments.amazon.co.uk\n";
+			} elseif ($this->getMarketplace() == 'de') {
+				$string_to_sign .= "payments.amazon.de\n";
+			}
 		} else {
-			$string_to_sign .= "payments-sandbox.amazon.co.uk\n";
+			if ($this->getMarketplace() == 'uk') {
+				$string_to_sign .= "payments-sandbox.amazon.co.uk\n";
+			} elseif ($this->getMarketplace() == 'de') {
+				$string_to_sign .= "payments-sandbox.amazon.de\n";
+			}
 		}
 
 		$string_to_sign .= "/cba/api/purchasecontract/\n";
@@ -468,9 +486,17 @@ class CBA {
 		$parameters['Signature'] = base64_encode(hash_hmac('sha256', $string_to_sign, $this->getSecretKey(), true));
 
 		if ($this->getMode() == 'live') {
-			$end_point = "payments.amazon.co.uk";
+			if ($this->getMarketplace() == 'uk') {
+				$end_point = "payments.amazon.co.uk";
+			} elseif ($this->getMarketplace() == 'de') {
+				$end_point = "payments.amazon.de";
+			}
 		} else {
-			$end_point = "payments-sandbox.amazon.co.uk";
+			if ($this->getMarketplace() == 'uk') {
+				$end_point = "payments-sandbox.amazon.co.uk";
+			} elseif ($this->getMarketplace() == 'de') {
+				$end_point = "payments-sandbox.amazon.de";
+			}
 		}
 
 		$request_url = 'https://' . $end_point . '/cba/api/purchasecontract/?' . $this->getParametersAsString($parameters);
@@ -556,5 +582,12 @@ class CBA {
 	public function setMode($mode) {
 		$this->mode = $mode;
 	}
+
+	public function getMarketplace() {
+		return $this->marketplace;
+	}
+
+	public function setMarketplace($marketplace) {
+		$this->marketplace = $marketplace;
+	}
 }
-?>

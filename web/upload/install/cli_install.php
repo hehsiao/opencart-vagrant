@@ -9,14 +9,14 @@
 // Usage:
 //
 //   cd install
-//   php cli_install.php install --db_host localhost \
-//                               --db_user root \
+//   php cli_install.php install --db_hostname localhost \
+//                               --db_username root \
 //                               --db_password pass \
-//                               --db_name opencart \
+//                               --db_database opencart \
+//                               --db_driver mysqli \
 //                               --username admin \
 //                               --password admin \
 //                               --email youremail@example.com \
-//                               --agree_tnc yes \
 //                               --http_server http://localhost/opencart
 //
 
@@ -31,6 +31,7 @@ define('DIR_DATABASE', DIR_SYSTEM . 'database/');
 define('DIR_LANGUAGE', DIR_APPLICATION . 'language/');
 define('DIR_TEMPLATE', DIR_APPLICATION . 'view/template/');
 define('DIR_CONFIG', DIR_SYSTEM . 'config/');
+define('DIR_MODIFICATION', DIR_SYSTEM . 'modification/');
 
 // Startup
 require_once(DIR_SYSTEM . 'startup.php');
@@ -58,28 +59,28 @@ function usage() {
 	echo "Usage:\n";
 	echo "======\n";
 	echo "\n";
-	$options = implode(" ", array('--db_driver', 'mysqli',
-								'--db_host', 'localhost',
-								'--db_user', 'root',
-								'--db_password', 'pass',
-								'--db_name', 'opencart',
-								'--username', 'admin',
-								'--password', 'admin',
-								'--email', 'youremail@example.com',
-								'--agree_tnc', 'yes',
-								'--http_server', 'http://localhost/opencart'));
+	$options = implode(" ", array(
+		'--db_hostname', 'localhost',
+		'--db_username', 'root',
+		'--db_password', 'pass',
+		'--db_database', 'opencart',
+		'--db_driver', 'mysqli',
+		'--username', 'admin',
+		'--password', 'admin',
+		'--email', 'youremail@example.com',
+		'--http_server', 'http://localhost/opencart'
+	));
 	echo 'php cli_install.php install ' . $options . "\n\n";
 }
 
 
 function get_options($argv) {
 	$defaults = array(
+		'db_hostname' => 'localhost',
+		'db_database' => 'opencart',
+		'db_prefix' => 'oc_',
 		'db_driver' => 'mysqli',
-		'db_host' => 'localhost',
-		'db_name' => 'opencart',
-		'db_prefix' => '',
 		'username' => 'admin',
-		'agree_tnc' => 'no',
 	);
 
 	$options = array();
@@ -97,16 +98,14 @@ function get_options($argv) {
 
 function valid($options) {
 	$required = array(
-		'db_driver',
-		'db_host',
-		'db_user',
+		'db_hostname',
+		'db_username',
 		'db_password',
-		'db_name',
+		'db_database',
 		'db_prefix',
 		'username',
 		'password',
 		'email',
-		'agree_tnc',
 		'http_server',
 	);
 	$missing = array();
@@ -115,10 +114,10 @@ function valid($options) {
 			$missing[] = $r;
 		}
 	}
-	if ($options['agree_tnc'] !== 'yes') {
-		$missing[] = 'agree_tnc (should be yes)';
+	if (!preg_match('#/$#', $options['http_server'])) {
+		$options['http_server'] = $options['http_server'] . '/';
 	}
-	$valid = count($missing) === 0 && $options['agree_tnc'] === 'yes';
+	$valid = count($missing) === 0;
 	return array($valid, $missing);
 }
 
@@ -126,7 +125,7 @@ function valid($options) {
 function install($options) {
 	$check = check_requirements();
 	if ($check[0]) {
-		setup_mysql($options);
+		setup_db($options);
 		write_config_files($options);
 		dir_permissions();
 	} else {
@@ -150,8 +149,8 @@ function check_requirements() {
 		$error = 'Warning: OpenCart will not work with session.auto_start enabled!';
 	}
 
-	if (!extension_loaded('mysql')) {
-		$error = 'Warning: MySQL extension needs to be loaded for OpenCart to work!';
+	if (!extension_loaded('mysqli')) {
+		$error = 'Warning: MySQLi extension needs to be loaded for OpenCart to work!';
 	}
 
 	if (!extension_loaded('gd')) {
@@ -170,43 +169,11 @@ function check_requirements() {
 		$error = 'Warning: ZLIB extension needs to be loaded for OpenCart to work!';
 	}
 
-	if (!is_writable(DIR_OPENCART . 'config.php')) {
-		$error = 'Warning: config.php needs to be writable for OpenCart to be installed!';
-	}
-
-	if (!is_writable(DIR_OPENCART . 'admin/config.php')) {
-		$error = 'Warning: admin/config.php needs to be writable for OpenCart to be installed!';
-	}
-
-	if (!is_writable(DIR_SYSTEM . 'cache')) {
-		$error = 'Warning: Cache directory needs to be writable for OpenCart to work!';
-	}
-
-	if (!is_writable(DIR_SYSTEM . 'logs')) {
-		$error = 'Warning: Logs directory needs to be writable for OpenCart to work!';
-	}
-
-	if (!is_writable(DIR_OPENCART . 'image')) {
-		$error = 'Warning: Image directory needs to be writable for OpenCart to work!';
-	}
-
-	if (!is_writable(DIR_OPENCART . 'image/cache')) {
-		$error = 'Warning: Image cache directory needs to be writable for OpenCart to work!';
-	}
-
-	if (!is_writable(DIR_OPENCART . 'image/data')) {
-		$error = 'Warning: Image data directory needs to be writable for OpenCart to work!';
-	}
-
-	if (!is_writable(DIR_OPENCART . 'download')) {
-		$error = 'Warning: Download directory needs to be writable for OpenCart to work!';
-	}
-
 	return array($error === null, $error);
 }
 
 
-function setup_mysql($dbdata) {
+function setup_db($dbdata) {
 	global $loader, $registry;
 	$loader->model('install');
 	$model = $registry->get('model_install');
@@ -227,22 +194,23 @@ function write_config_files($options) {
 
 	$output .= '// DIR' . "\n";
 	$output .= 'define(\'DIR_APPLICATION\', \'' . DIR_OPENCART . 'catalog/\');' . "\n";
-	$output .= 'define(\'DIR_SYSTEM\', \'' . DIR_OPENCART. 'system/\');' . "\n";
+	$output .= 'define(\'DIR_SYSTEM\', \'' . DIR_OPENCART . 'system/\');' . "\n";
 	$output .= 'define(\'DIR_DATABASE\', \'' . DIR_OPENCART . 'system/database/\');' . "\n";
 	$output .= 'define(\'DIR_LANGUAGE\', \'' . DIR_OPENCART . 'catalog/language/\');' . "\n";
 	$output .= 'define(\'DIR_TEMPLATE\', \'' . DIR_OPENCART . 'catalog/view/theme/\');' . "\n";
 	$output .= 'define(\'DIR_CONFIG\', \'' . DIR_OPENCART . 'system/config/\');' . "\n";
 	$output .= 'define(\'DIR_IMAGE\', \'' . DIR_OPENCART . 'image/\');' . "\n";
 	$output .= 'define(\'DIR_CACHE\', \'' . DIR_OPENCART . 'system/cache/\');' . "\n";
-	$output .= 'define(\'DIR_DOWNLOAD\', \'' . DIR_OPENCART . 'download/\');' . "\n";
+	$output .= 'define(\'DIR_DOWNLOAD\', \'' . DIR_OPENCART . 'system/download/\');' . "\n";
+	$output .= 'define(\'DIR_MODIFICATION\', \'' . DIR_OPENCART . 'system/modification/\');' . "\n";
 	$output .= 'define(\'DIR_LOGS\', \'' . DIR_OPENCART . 'system/logs/\');' . "\n\n";
 
 	$output .= '// DB' . "\n";
-	$output .= 'define(\'DB_DRIVER\', \'mysql\');' . "\n";
-	$output .= 'define(\'DB_HOSTNAME\', \'' . addslashes($options['db_host']) . '\');' . "\n";
-	$output .= 'define(\'DB_USERNAME\', \'' . addslashes($options['db_user']) . '\');' . "\n";
+	$output .= 'define(\'DB_DRIVER\', \'' . addslashes($options['db_driver']) . '\');' . "\n";
+	$output .= 'define(\'DB_HOSTNAME\', \'' . addslashes($options['db_hostname']) . '\');' . "\n";
+	$output .= 'define(\'DB_USERNAME\', \'' . addslashes($options['db_username']) . '\');' . "\n";
 	$output .= 'define(\'DB_PASSWORD\', \'' . addslashes($options['db_password']) . '\');' . "\n";
-	$output .= 'define(\'DB_DATABASE\', \'' . addslashes($options['db_name']) . '\');' . "\n";
+	$output .= 'define(\'DB_DATABASE\', \'' . addslashes($options['db_database']) . '\');' . "\n";
 	$output .= 'define(\'DB_PREFIX\', \'' . addslashes($options['db_prefix']) . '\');' . "\n";
 	$output .= '?>';
 
@@ -272,16 +240,17 @@ function write_config_files($options) {
 	$output .= 'define(\'DIR_CONFIG\', \'' . DIR_OPENCART . 'system/config/\');' . "\n";
 	$output .= 'define(\'DIR_IMAGE\', \'' . DIR_OPENCART . 'image/\');' . "\n";
 	$output .= 'define(\'DIR_CACHE\', \'' . DIR_OPENCART . 'system/cache/\');' . "\n";
-	$output .= 'define(\'DIR_DOWNLOAD\', \'' . DIR_OPENCART . 'download/\');' . "\n";
+	$output .= 'define(\'DIR_DOWNLOAD\', \'' . DIR_OPENCART . 'system/download/\');' . "\n";
 	$output .= 'define(\'DIR_LOGS\', \'' . DIR_OPENCART . 'system/logs/\');' . "\n";
+	$output .= 'define(\'DIR_MODIFICATION\', \'' . DIR_OPENCART . 'system/modification/\');' . "\n";
 	$output .= 'define(\'DIR_CATALOG\', \'' . DIR_OPENCART . 'catalog/\');' . "\n\n";
 
 	$output .= '// DB' . "\n";
-	$output .= 'define(\'DB_DRIVER\', \'mysql\');' . "\n";
-	$output .= 'define(\'DB_HOSTNAME\', \'' . addslashes($options['db_host']) . '\');' . "\n";
-	$output .= 'define(\'DB_USERNAME\', \'' . addslashes($options['db_user']) . '\');' . "\n";
+	$output .= 'define(\'DB_DRIVER\', \'' . addslashes($options['db_driver']) . '\');' . "\n";
+	$output .= 'define(\'DB_HOSTNAME\', \'' . addslashes($options['db_hostname']) . '\');' . "\n";
+	$output .= 'define(\'DB_USERNAME\', \'' . addslashes($options['db_username']) . '\');' . "\n";
 	$output .= 'define(\'DB_PASSWORD\', \'' . addslashes($options['db_password']) . '\');' . "\n";
-	$output .= 'define(\'DB_DATABASE\', \'' . addslashes($options['db_name']) . '\');' . "\n";
+	$output .= 'define(\'DB_DATABASE\', \'' . addslashes($options['db_database']) . '\');' . "\n";
 	$output .= 'define(\'DB_PREFIX\', \'' . addslashes($options['db_prefix']) . '\');' . "\n";
 	$output .= '?>';
 
@@ -296,7 +265,7 @@ function write_config_files($options) {
 function dir_permissions() {
 	$dirs = array(
 		DIR_OPENCART . 'image/',
-		DIR_OPENCART . 'download/',
+		DIR_OPENCART . 'system/download/',
 		DIR_SYSTEM . 'cache/',
 		DIR_SYSTEM . 'logs/',
 	);
@@ -318,7 +287,7 @@ case "install":
 		$valid = valid($options);
 		if (!$valid[0]) {
 			echo "FAILED! Following inputs were missing or invalid: ";
-			echo implode(', ',  $valid[1]) . "\n\n";
+			echo implode(', ', $valid[1]) . "\n\n";
 			exit(1);
 		}
 		install($options);
@@ -334,4 +303,3 @@ case "usage":
 default:
 	echo usage();
 }
-?>

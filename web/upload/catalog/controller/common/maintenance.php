@@ -9,7 +9,7 @@ class ControllerCommonMaintenance extends Controller {
 
 				if (isset($part[0])) {
 					$route .= $part[0];
-				}			
+				}
 			}
 
 			// Show site if logged in as admin
@@ -18,40 +18,42 @@ class ControllerCommonMaintenance extends Controller {
 			$this->user = new User($this->registry);
 
 			if (($route != 'payment') && !$this->user->isLogged()) {
-				return $this->forward('common/maintenance/info');
-			}						
+				return new Action('common/maintenance/info');
+			}
 		}
 	}
 
 	public function info() {
-		$this->language->load('common/maintenance');
+		$this->load->language('common/maintenance');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
-		$this->data['heading_title'] = $this->language->get('heading_title');
-
-		$this->document->breadcrumbs = array();
-
-		$this->document->breadcrumbs[] = array(
-			'text'      => $this->language->get('text_maintenance'),
-			'href'      => $this->url->link('common/maintenance'),
-			'separator' => false
-		);
-
-		$this->data['message'] = $this->language->get('text_message');
-
-		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/common/maintenance.tpl')) {
-			$this->template = $this->config->get('config_template') . '/template/common/maintenance.tpl';
+		if ($this->request->server['SERVER_PROTOCOL'] == 'HTTP/1.1') {
+			$this->response->addHeader('HTTP/1.1 503 Service Unavailable');
 		} else {
-			$this->template = 'default/template/common/maintenance.tpl';
+			$this->response->addHeader('HTTP/1.0 503 Service Unavailable');
 		}
 
-		$this->children = array(
-			'common/footer',
-			'common/header'
+		$this->response->addHeader('Retry-After: 3600');
+
+		$data['heading_title'] = $this->language->get('heading_title');
+
+		$data['breadcrumbs'] = array();
+
+		$data['breadcrumbs'][] = array(
+			'text' => $this->language->get('text_maintenance'),
+			'href' => $this->url->link('common/maintenance')
 		);
 
-		$this->response->setOutput($this->render());
+		$data['message'] = $this->language->get('text_message');
+
+		$data['header'] = $this->load->controller('common/header');
+		$data['footer'] = $this->load->controller('common/footer');
+
+		if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/common/maintenance.tpl')) {
+			$this->response->setOutput($this->load->view($this->config->get('config_template') . '/template/common/maintenance.tpl', $data));
+		} else {
+			$this->response->setOutput($this->load->view('default/template/common/maintenance.tpl', $data));
+		}
 	}
 }
-?>

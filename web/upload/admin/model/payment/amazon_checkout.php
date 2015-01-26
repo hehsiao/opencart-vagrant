@@ -53,13 +53,13 @@ class ModelPaymentAmazonCheckout extends Model {
 
 			if ($order) {
 				$this->load->library('cba');
-				$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'), $this->config->get('amazon_checkout_access_secret'));
+				$cba = new CBA($this->config->get('amazon_checkout_merchant_id'), $this->config->get('amazon_checkout_access_key'), $this->config->get('amazon_checkout_access_secret'), $this->config->get('amazon_checkout_marketplace'));
 
-				if ($data['order_status_id'] == $this->config->get('amazon_checkout_order_shipped_status')) {
+				if ($data['order_status_id'] == $this->config->get('amazon_checkout_shipped_status_id')) {
 					$cba->orderShipped($order);
 				}
 
-				if ($data['order_status_id'] == $this->config->get('amazon_checkout_order_canceled_status')) {
+				if ($data['order_status_id'] == $this->config->get('amazon_checkout_canceled_status_id')) {
 					$cba->orderCanceled($order);
 				}
 			}
@@ -98,4 +98,3 @@ class ModelPaymentAmazonCheckout extends Model {
 		return $order;
 	}
 }
-?>

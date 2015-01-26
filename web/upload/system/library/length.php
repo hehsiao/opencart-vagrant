@@ -26,14 +26,14 @@ class Length {
 		if (isset($this->lengths[$from])) {
 			$from = $this->lengths[$from]['value'];
 		} else {
-			$from = 0;
+			$from = 1;
 		}
 
 		if (isset($this->lengths[$to])) {
 			$to = $this->lengths[$to]['value'];
 		} else {
-			$to = 0;
-		}		
+			$to = 1;
+		}
 
 		return $value * ($to / $from);
 	}
@@ -52,6 +52,5 @@ class Length {
 		} else {
 			return '';
 		}
-	}		
+	}
 }
-?>
