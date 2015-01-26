@@ -14,7 +14,7 @@ vagrant for development and testing.
 # Installation
 
 ```bash
-git clone --recursive https://github.com/JoshuaEstes/vagrant-opencart.git
+git clone --recursive https://github.com/hehsiao/opencart-vagrant.git
 cd vagrant-opencart
 curl -sS https://getcomposer.org/installer | php
 php composer.phar install
